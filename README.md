@@ -10,7 +10,7 @@
 
 **Risk factors for cardiovascular heart disease**
 
-The overall goal is to predict the occurrence of cardiovascular disease conditions and to identify the most important risk factors. For this purpose, different classification ML algorithms were considered (logistic regression, decision tree, random forest and k-nearest neighbor).  This project is presented in the form of jupyter notebook but you can also read it in the Rmarkdown HTLM version published in Rpubs.
+The overall goal is to predict the occurrence of cardiovascular disease conditions and to identify the most important risk factors. For this purpose, different classification ML algorithms were considered (logistic regression, decision tree, random forest and k-nearest neighbor).  This project is presented in the form of jupyter notebook but you can also read it in the Rmarkdown HTLM version published in [Rpubs](https://rpubs.com/miriamc/1014551).
 
 Contents:
 + Data Cleaning & Exploratory Data Analysis
