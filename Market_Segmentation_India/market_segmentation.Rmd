@@ -1,0 +1,517 @@
+---
+title: "Unsupervised Machine Learning techniques for market segmentation"
+author: "Miriam Cardozo"
+date: "March 2023"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: spacelab
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introducción
+
+Market segmentation is the process of dividing a larger market into
+smaller groups of consumers who have similar needs, characteristics, or
+behaviors. This allows companies to target specific groups of consumers
+with tailored marketing messages and product offerings.
+
+Machine learning algorithms can be useful in the process of market
+segmentation by analyzing large amounts of data to identify patterns and
+clusters of consumers with similar demographic and geographic
+characteristics or behaviors. This can help companies more accurately
+and efficiently identify and target specific market segments and
+optimize their marketing, advertising, and sales efforts.
+
+### **About the dataset**
+
+The dataset for an Indian store includes 10000 observations and 5
+variables:
+
+| Variable   | Description                                                                                                            |
+|----------------|--------------------------------------------------------|
+| *reps*     | Representatives who are involved in the promotion and sale of the products in their respective region.                 |
+| *products* | The 12 brands of products promoted by the company.                                                                     |
+| *qty*      | The quantity of products sold in units per transaction.                                                                |
+| *revenue*  | The revenue generated for each transaction.                                                                            |
+| *region*   | Indicates the region in India where the transaction took place, with four regions: East, North, South, and West India. |
+
+Seetharam Indurti (2019) [Dataset available at:
+[Kaggle](%5Bhttps://www.kaggle.com/datasets/seetzz/market-segmentation%5D))
+
+### **Objective**
+
+The aim of this project is to obtain the segmentation of products based
+on the revenue generated in different regions in order to understand the
+market trends. The segmentation will help the company to devise
+marketing strategies and promotional schemes to position the right
+product according to the preference of the consumers in any given
+segment.
+
+## 1. Importing data (.csv)
+
+```{r}
+datos <-read.csv("store.csv", header=T, sep = ",", dec=".")
+```
+
+```{r message=FALSE}
+##Load libraries
+library(dplyr) 
+library(ggplot2)
+library(caret)
+library(tibble)
+library(tidyr)
+library(factoextra)
+library(forcats)
+library(knitr)
+```
+
+## 2. Exploratory Data Analysis (EDA)
+
+```{r}
+###2.a. Structure of data####
+head(datos, n=10)
+str(datos) 
+dim(datos)
+```
+
+```{r}
+#summary statistics
+summary(datos)
+```
+
+```{r}
+#categorical variables levels
+library(forcats)
+fct_count(datos$product) #12 different products
+fct_count(datos$reps) #72 different reps
+fct_count(datos$region) #4 regions
+```
+
+The dataset contains 10000 transactions of revenues from 12 different
+products sold by 72 representatives in 4 regions of India (Western,
+Norther, Souther and Easter India).
+
+```{r}
+# check missing values
+any(!complete.cases(datos))
+```
+
+The dataset does not contain missing values.
+
+### Quantitative variables
+
+**Data visualization**
+
+```{r warning=FALSE}
+#Histograms
+ggplot(datos, aes(x = qty)) + geom_bar()
+ggplot(datos, aes(x = revenue)) + geom_histogram()
+```
+
+```{r}
+#Boxplot
+ggplot(datos, aes(y = qty)) + geom_boxplot()
+ggplot(datos, aes(y = revenue)) + geom_boxplot()
+```
+
+The variables *qty* and *revenue* show outliers in their distribution.
+However, at first we'll consider all values in the model since it may
+contain valuable information of importat revenues.
+
+```{r}
+###Check correlation between variables
+library(ggcorrplot)
+options(repr.plot.width = 6, repr.plot.height = 5)
+
+#Correlogram plot
+corr <- round(cor(select_if(datos, is.numeric)), 2)
+ggcorrplot(corr, hc.order = T, ggtheme = ggplot2::theme_gray,
+           colors = c("red", "white", "blue"), lab = T)
+```
+
+As it was expected, the variables *qty* and *revenue* are highly
+correlated.
+
+**What products are fast moving in terms of the quantity and revenue
+generated?**
+
+```{r}
+#Scatter plot
+options(repr.plot.width = 11, repr.plot.height = 5)
+
+#Qty and revenue by products
+scplot1 <- ggplot(datos, aes(revenue, qty, col = product)) + 
+  geom_point() + theme(legend.position = 'bottom') + 
+  labs(x='revenue', y ='qty')
+print(scplot1)
+
+#Qty and revenue by region
+scplot2 <- ggplot(datos, aes(revenue, qty, col = region)) + 
+  geom_point() + theme(legend.position = 'bottom') + 
+  labs(x='revenue', y ='qty')
+print(scplot2)
+
+```
+
+The scatter plot shows differences in the effectiveness of different
+products in generating revenue. For example, sales of Galaxy are the
+ones that generate the highest revenue for the lowest number of items
+sold. Hence, Galaxy followed by Alpen and Almond are the most fast
+moving brands in terms of the quantity and revenue generated.
+
+### Categorical variables
+
+**Data visualization**
+
+```{r}
+#Transactions per region
+ggplot(data = datos, aes(x = region, y = after_stat(count), fill = region)) +
+  geom_bar() +
+  scale_fill_brewer(palette ="Greens") +
+  labs(title = "Number of transactions per regions") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+**Are there regional differences in the quantity of items sold and the
+revenue achieved?**
+
+```{r}
+datos %>% 
+  group_by(region) %>% 
+  summarise(Tot_qty= sum(qty),
+            Tot_revenue=sum(revenue),
+            Tot_transactions= n()) %>% 
+  kable(caption ="Total transactions per region")
+```
+
+The north (3603) and west (3029) regions double the number of
+transactions to the east and south regions. Hence the total quantity of
+sold products and total revenue in this regions are higher too.
+
+```{r}
+#Products
+ggplot(data = datos, aes(x = product, y = after_stat(count), fill = product)) +
+  geom_bar() +
+  labs(title = "Number of transactions per products") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+datos %>% 
+  group_by(product) %>% 
+  summarise(tot_qty= sum(qty),
+            tot_revenue=sum(revenue),
+            tot_transactions= n()) %>% 
+  arrange(desc(tot_revenue)) %>% 
+  kable(caption = "Total transactions and revenue per products")
+```
+
+Overall, of the 12 products sold in the 4 regions, Alpen is the
+best-selling in India with a total revenue of 177152.07 rupies, followed
+by Orbit, Milka, and Galaxy. Halls generated the lowest revenue.
+
+```{r}
+#Products per region
+ggplot(data = datos, aes(x = product, y = after_stat(count), fill = region)) +
+  geom_bar() +
+  labs(title = "Number of transactions per products by region") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+**Suppose that the store manager want to identified the more efficient
+representative in each region in terms of revenue and transactions.**
+
+```{r}
+#One alternative is using pivot tables
+library(pivottabler)
+
+pt <- PivotTable$new()
+pt$addData(datos)
+pt$addRowDataGroups("region")
+pt$addRowDataGroups("reps")
+pt$defineCalculation(calculationName="Tot_transactions", summariseExpression="n()")
+pt$defineCalculation(calculationName="Tot_revenues", summariseExpression="sum(revenue)")
+pt$evaluatePivot()
+
+# apply the green style for reps with more than 300 transactions
+cells <- pt$findCells(minValue=300, maxValue=1000, includeNull=FALSE, includeNA=FALSE)
+pt$setStyling(cells=cells, declarations=list("background-color"="#C6EFCE", "color"="#006100"))
+
+# apply the yellow style for revenues higher than 20000
+cells <- pt$findCells(minValue=20000, maxValue=50000, includeNull=FALSE, includeNA=FALSE)
+pt$setStyling(cells=cells, declarations=list("background-color"="#FFEB9C", "color"="#9C5700"))
+
+pt$renderPivot()
+```
+
+The total revenue generated by all the representatives for the company
+is 9,05,702.21 rupies, covering 12 brands and involving 10,000
+transactions in all the 4 regions. However, there is a difference
+between regions in the efficiency to generate revenue between the reps.
+In the table above, in green, the most efficient representatives of the
+4 regions that reach more than 300 transactions obtaining total revenues
+higher than 20,000 rupies (yellow) are indicated.
+
+-   East region: Aash and Vish
+
+-   South region: Seet
+
+-   North region: Rachna
+
+-   West region: Santosh
+
+    **Suppose that now the store manager want to see the revenue and
+    quantity broken down by the products and region.**
+
+```{r}
+#Sales trends of products per reps
+pt2 <- PivotTable$new()
+pt2$addData(datos)
+pt2$addRowDataGroups("region")
+pt2$addColumnDataGroups("product")
+pt2$defineCalculation(calculationName="tot_revenue", summariseExpression="sum(revenue)")
+pt2$defineCalculation(calculationName="tot_qty", summariseExpression="sum(qty)")
+pt2$evaluatePivot()
+pt2$renderPivot()
+```
+
+## 3. Data preprocessing
+
+```{r}
+#Normalizing data
+datos_preProces <-preProcess(datos, method = c("scale", "center"))
+datos_uns <- predict(datos_preProces,datos)
+
+#One Hot-encoding
+datos_uns$reps <- as.factor(datos_uns$reps)
+datos_uns$region <- as.factor(datos_uns$region)
+datos_uns$product <- as.factor(datos_uns$product)
+library(mltools)
+library(data.table)
+datos_uns <- one_hot(as.data.table(datos_uns))
+
+#Chequeamos preprocesamiento
+str(datos_uns)
+```
+
+## 4. Asessing Clustering Tendency
+
+Before applying any clustering method on your data, it's important to
+evaluate whether the data sets contains meaningful clusters. Because,
+even if the data is uniformly distributed, the k-means algorithm and
+hierarchical clustering impose a classification. Since the main problem
+faced by unsupervised learning methods is the difficulty in validating
+the results (because there is no response variable available to compare
+them), this type of analysis can be used to evaluate the validity of
+clustering analysis.
+
+```{r}
+library(clustertend)
+# Plot data set
+fviz_pca_ind(prcomp(datos_uns), title = "PCA",
+             habillage = datos$region, palette = "jco",
+             geom = "point", ggtheme = theme_classic(),
+             legend = "bottom")
+
+```
+
+As we can see, the data is not randomly or uniformly distributed.
+
+## 5. Principal Component Analysis (PCA)
+
+Principal Component Analysis belongs to the family of techniques known
+as unsupervised learning. This method allows to "condense" the
+information provided by multiple variables into just a few components,
+to find a linear combination of the original features that capture
+maximum variance in the dataset.
+
+```{r}
+library(FactoMineR)
+
+#Running a PCA.
+store_pca <- PCA(datos_uns, graph = FALSE)
+print(store_pca)
+
+#Exploring PCA()
+# Getting the summary of the pca
+summary(store_pca)
+```
+
+```{r}
+#Tracing variable contributions
+store_pca$var$contrib
+```
+
+```{r}
+#Visualizing PCA
+fviz_pca_var(store_pca, col.var = "contrib", gradient.cols = c("#002bbb", "#bb2e00"), repel = TRUE)
+
+#Creating a factor map for the top 10 variables with the highest contributions.
+fviz_pca_var(store_pca, select.var = list(contrib = 8), repel = TRUE)
+
+#Barplotting the contributions of variables
+fviz_contrib(store_pca, choice = "var", axes = 1, top = 10)
+```
+
+The red line corresponds to the expected percentage if the distributions
+were uniform.
+
+## 6. K-means
+
+The number of clusters (k) must be set before we start the algorithm. At
+first we can use several different values of k and examine the
+differences in the results.
+
+```{r}
+library(factoextra)
+library(rattle)
+library(cluster)
+library(gclus)
+
+set.seed(123)
+k2 <- kmeans(datos_uns, centers = 2, nstart = 25)
+k3 <- kmeans(datos_uns, centers = 3, nstart = 25)
+k4 <- kmeans(datos_uns, centers = 4, nstart = 25)
+k5 <- kmeans(datos_uns, centers = 5, nstart = 25)
+k6 <- kmeans(datos_uns, centers = 6, nstart = 25)
+```
+
+```{r}
+# plots to compare
+p1 <- fviz_cluster(k2, geom = "point", data = datos_uns) + ggtitle("k = 2")
+p2 <- fviz_cluster(k3, geom = "point",  data = datos_uns) + ggtitle("k = 3")
+p3 <- fviz_cluster(k4, geom = "point",  data = datos_uns) + ggtitle("k = 4")
+p4 <- fviz_cluster(k5, geom = "point",  data = datos_uns) + ggtitle("k = 5")
+
+library(gridExtra)
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+```{r}
+#Determining Optimal Clusters with elbow method
+set.seed(123)
+library(purrr)
+
+# function to compute total within-cluster sum of square 
+wss <- function(k) {
+  kmeans(datos_uns, k, nstart = 25 )$tot.withinss
+}
+
+# Compute and plot wss for k = 1 to k = 6
+k.values <- 1:6
+
+# extract wss for 2-6 clusters
+wss_values <- map_dbl(k.values, wss)
+#plot
+plot(k.values, wss_values,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+```
+
+According to the elbow method, the optimal K-value is 2.
+
+```{r}
+##Building a k-means model with a k=2
+set.seed(123)
+km.res1 <- kmeans(datos_uns, 2, nstart = 25)
+
+fviz_cluster(list(data = datos_uns, cluster = km.res1$cluster),
+             ellipse.type = "norm", geom = "point", stand = FALSE,
+             palette = "jco",ggtheme = theme_classic())
+```
+
+```{r}
+#Extracting the vector of cluster assignment from the model
+clust_store <- km.res1$cluster
+
+#Building the segment_customers dataframe
+segment_store <- mutate(datos_uns, cluster = clust_store)
+
+#Calculating the mean for each category
+count(segment_store, cluster)
+
+#Adding the cluster variable to the original dataframe
+datos <- datos %>% mutate(cluster = segment_store$cluster)
+
+#Adding the cluster variable to the original dataframe
+datos_uns <- datos_uns %>% mutate(cluster = segment_store$cluster)
+
+#It’s possible to compute the mean of each variables by clusters using the original data:
+datos %>% 
+  group_by(cluster) %>% 
+  summarise(mean_revenue = mean(revenue),
+            mean_qty = mean(qty),
+            tot_transactions = n())
+```
+
+```{r}
+#visualizing revenue
+datos %>% ggplot(aes(revenue)) + geom_histogram(color = "black", fill = "lightblue") + facet_wrap(vars(cluster)) +  geom_vline(aes(xintercept=mean(revenue)),color="blue", linetype="dashed", size = 1)
+
+#visualizing qty
+datos %>% ggplot(aes(qty)) + geom_histogram(color = "black", fill = "lightgreen") + facet_wrap(vars(cluster)) +  geom_vline(aes(xintercept=mean(qty)),color="blue", linetype="dashed", size = 1)
+
+
+
+
+```
+
+## 7. Final conclusions
+
+An unsupervised learning in R was perfomed with basic clustering
+(K-means) and dimesionality reduction (PCA) in order to get some
+insights from the data.
+
+According with the results of the clustering analysis, we can compare
+the 2 clusters from the visuals above.
+
+**Cluster 1**
+
+-   Has a total of 700 transactions
+
+-   This group has a high purchasing power when it comes to quantity of
+    sold items.
+
+-   Have relatively higher total revenue.
+
+**Cluster 2**
+
+-   Has a total of 9300 transactions.
+
+-   This cluster have low purchasing power when it comes to quantity of
+    sold items.
+
+-   Have lower total revenue
+
+-   Majority of the transactions have low revenue generating.
+
+This dataset can be used to analyze various aspects of the store's
+performance, including sales trends, regional differences, and the
+effectiveness of different products and representatives in generating
+revenue.
+
+Other analysis clustering alternatives are *hierarchical clustering* or
+converting the numeric variables qty and revenue into categories and
+using *K-modes*.
+
+## 8. References
+
+Alboukadel Kassambara. Practical Guide to Cluster Analysis in R.
+Unsupervised Machine Learning. (2017).
+
+Joaquín Amat Rodrigo. Análisis de Componentes Principales (Principal
+Component Analysis, PCA) y t-SNE (2017). Available at
+[link](https://www.cienciadedatos.net/documentos/35_principal_component_analysis)
