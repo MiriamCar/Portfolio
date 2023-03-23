@@ -25,7 +25,7 @@ Contents:
 + Random forest optimization of hyperparameters
 + Final model predictions
 
-[**Unsupervised Machine Learning techniques for market segmentation (PCA + K-means)**]
+[**Unsupervised Machine Learning techniques for market segmentation (PCA + K-means)**](https://github.com/MiriamCar/Portfolio/tree/main/Market_Segmentation_India)
 
 The aim of this project is to obtain the segmentation of products based on the revenue generated in different regions of India in order to understand the market trends.This project is presented in the form of R Markdown but you can also read it in the HTLM version published in [Rpubs](https://rpubs.com/miriamc/1019241).
 
