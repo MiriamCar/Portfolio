@@ -36,3 +36,14 @@ Contents:
 + Principal Component Analysis
 + K-means
 + Final conclusions
+
+
+## Data analysis projects with Power BI
+
+[**Tendencias Globales e Históricas del Emprendedurismo en Mujeres**](https://drive.google.com/file/d/1cFUAM4P8OyqspaQC4Tf33KkzwocWSZ_-/view?usp=sharing)
+
+This project is part of the final project for the Data Analysis course offered by Coderhouse, one of the largest online learning platforms in Latin America. 
+
+Through this project, I demonstrate my ability to gather, analyze, and visualize data effectively to address specific objectives related to women's participation in the business sector and regional economic indicators.
+
+This project not only demonstrates my technical abilities but also reflects my commitment to continuous learning and professional growth within the field of data analysis.
